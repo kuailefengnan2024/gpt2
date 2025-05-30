@@ -1,3 +1,7 @@
+# GPT-2训练脚本 - 从零开始训练一个GPT语言模型
+# 支持单GPU和多GPU分布式训练
+# 包含验证评估、HellaSwag测试和文本生成功能
+
 import os
 import math
 import time
@@ -9,6 +13,7 @@ from torch.nn import functional as F
 from hellaswag import render_example, iterate_examples
 # -----------------------------------------------------------------------------
 
+# 多头自注意力机制 - GPT的核心组件
 class CausalSelfAttention(nn.Module):
 
     def __init__(self, config):
@@ -39,6 +44,7 @@ class CausalSelfAttention(nn.Module):
         y = self.c_proj(y)
         return y
 
+# 前馈神经网络 - Transformer块的第二个主要组件  
 class MLP(nn.Module):
 
     def __init__(self, config):
@@ -54,6 +60,7 @@ class MLP(nn.Module):
         x = self.c_proj(x)
         return x
 
+# Transformer块 - 包含注意力和MLP的完整单元
 class Block(nn.Module):
 
     def __init__(self, config):
@@ -68,6 +75,7 @@ class Block(nn.Module):
         x = x + self.mlp(self.ln_2(x))
         return x
 
+# GPT模型配置参数
 @dataclass
 class GPTConfig:
     block_size: int = 1024 # 最大序列长度
@@ -76,6 +84,7 @@ class GPTConfig:
     n_head: int = 12 # 头数
     n_embd: int = 768 # embedding 维度
 
+# 完整的GPT模型 - 包含embedding、transformer块和输出层
 class GPT(nn.Module):
 
     def __init__(self, config):
@@ -96,6 +105,7 @@ class GPT(nn.Module):
         # 初始化参数
         self.apply(self._init_weights)
 
+    # 初始化模型权重 - 使用标准的正态分布初始化
     def _init_weights(self, module):
         if isinstance(module, nn.Linear):
             std = 0.02
@@ -107,6 +117,7 @@ class GPT(nn.Module):
         elif isinstance(module, nn.Embedding):
             torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
 
+    # 模型前向传播 - 输入token序列，输出logits和损失
     def forward(self, idx, targets=None):
         # idx 的形状是 (B, T)
         B, T = idx.size()
@@ -127,6 +138,7 @@ class GPT(nn.Module):
             loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1))
         return logits, loss
 
+    # 从HuggingFace加载预训练权重
     @classmethod
     def from_pretrained(cls, model_type):
         """从 huggingface 加载预训练的 GPT-2 模型权重"""
@@ -176,6 +188,7 @@ class GPT(nn.Module):
 
         return model
 
+    # 配置优化器 - 设置权重衰减和学习率
     def configure_optimizers(self, weight_decay, learning_rate, device_type):
         # 从所有候选参数开始（需要梯度的）
         param_dict = {pn: p for pn, p in self.named_parameters()}
@@ -205,12 +218,14 @@ class GPT(nn.Module):
 import tiktoken
 import numpy as np
 
+# 从numpy文件加载token数据
 def load_tokens(filename):
     npt = np.load(filename)
     npt = npt.astype(np.int32) # 视频后添加
     ptt = torch.tensor(npt, dtype=torch.long)
     return ptt
 
+# 轻量级数据加载器 - 支持分布式训练的批次生成
 class DataLoaderLite:
     def __init__(self, B, T, process_rank, num_processes, split):
         self.B = B
@@ -231,12 +246,14 @@ class DataLoaderLite:
             print(f"found {len(shards)} shards for split {split}")
         self.reset()
 
+    # 重置数据加载器到初始状态
     def reset(self):
         # 状态，从 shard 零开始初始化
         self.current_shard = 0
         self.tokens = load_tokens(self.shards[self.current_shard])
         self.current_position = self.B * self.T * self.process_rank
 
+    # 获取下一个训练批次 - 返回输入和目标序列
     def next_batch(self):
         B, T = self.B, self.T
         buf = self.tokens[self.current_position : self.current_position+B*T+1]
@@ -255,6 +272,7 @@ class DataLoaderLite:
 # HellaSwag 评估的辅助函数
 # 接受 tokens、mask 和 logits，返回损失最低的补全的索引
 
+# HellaSwag评估辅助函数 - 找出最可能的答案选项
 def get_most_likely_row(tokens, mask, logits):
     # 在所有位置评估自回归损失
     shift_logits = (logits[..., :-1, :]).contiguous()
@@ -285,11 +303,10 @@ from torch.distributed import init_process_group, destroy_process_group
 from torch.nn.parallel import DistributedDataParallel as DDP
 import torch.distributed as dist
 
-# 设置 DDP (distributed data parallel)
-# torchrun 命令设置环境变量 RANK、LOCAL_RANK 和 WORLD_SIZE
+# 分布式训练设置 - 检测是否使用多GPU训练
 ddp = int(os.environ.get('RANK', -1)) != -1 # 这是 ddp 运行吗？
 if ddp:
-    # 目前 DDP 的使用需要 CUDA，我们根据 rank 适当设置设备
+    # 多GPU分布式训练配置
     assert torch.cuda.is_available(), "for now i think we need CUDA for DDP"
     init_process_group(backend='nccl')
     ddp_rank = int(os.environ['RANK'])
@@ -299,7 +316,7 @@ if ddp:
     torch.cuda.set_device(device)
     master_process = ddp_rank == 0 # 这个进程将进行日志记录、checkpointing 等
 else:
-    # 普通，非 DDP 运行
+    # 单GPU或CPU训练配置
     ddp_rank = 0
     ddp_local_rank = 0
     ddp_world_size = 1
@@ -350,6 +367,8 @@ max_lr = 6e-4
 min_lr = max_lr * 0.1
 warmup_steps = 715
 max_steps = 19073 # 19,073 steps 约为 1 epoch，如果数据是 10B tokens，batch size 0.5M tokens
+
+# 学习率调度函数 - 实现warmup和余弦衰减
 def get_lr(it):
     # 1) warmup_iters steps 的线性 warmup
     if it < warmup_steps:
@@ -377,7 +396,7 @@ for step in range(max_steps):
     t0 = time.time()
     last_step = (step == max_steps - 1)
 
-    # 偶尔评估我们的验证损失
+    # 每250步进行验证损失评估
     if step % 250 == 0 or last_step:
         model.eval()
         val_loader.reset()
@@ -410,7 +429,7 @@ for step in range(max_steps):
                 # rng seeds 等
                 torch.save(checkpoint, checkpoint_path)
 
-    # 偶尔评估 hellaswag
+    # 每250步进行HellaSwag常识推理评估
     if (step % 250 == 0 or last_step) and (not use_compile):
         num_correct_norm = 0
         num_total = 0
@@ -443,7 +462,7 @@ for step in range(max_steps):
             with open(log_file, "a") as f:
                 f.write(f"{step} hella {acc_norm:.4f}\n")
 
-    # 偶尔从模型生成（除了 step 0，那是噪声）
+    # 每250步生成文本样本来检查模型质量
     if ((step > 0 and step % 250 == 0) or last_step) and (not use_compile):
         model.eval()
         num_return_sequences = 4
@@ -479,7 +498,7 @@ for step in range(max_steps):
             decoded = enc.decode(tokens)
             print(f"rank {ddp_rank} sample {i}: {decoded}")
 
-    # 进行一步优化
+    # 执行一步训练优化
     model.train()
     optimizer.zero_grad()
     loss_accum = 0.0
