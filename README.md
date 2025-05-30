@@ -1,10 +1,10 @@
-# build nanoGPT
+# 构建 nanoGPT
 
-This repo holds the from-scratch reproduction of [nanoGPT](https://github.com/karpathy/nanoGPT/tree/master). The git commits were specifically kept step by step and clean so that one can easily walk through the git commit history to see it built slowly. Additionally, there is an accompanying [video lecture on YouTube](https://youtu.be/l8pRSuU81PU) where you can see me introduce each commit and explain the pieces along the way.
+这个仓库包含了从零开始复现 [nanoGPT](https://github.com/karpathy/nanoGPT/tree/master) 的完整过程。Git 提交历史特意保持了逐步清晰的结构，这样任何人都可以轻松浏览提交历史，看到项目是如何慢慢构建起来的。此外，在 [YouTube 上有配套的视频讲座](https://youtu.be/l8pRSuU81PU)，您可以看到我介绍每个提交并逐步解释各个部分。
 
-We basically start from an empty file and work our way to a reproduction of the [GPT-2](https://d4mucfpksywv.cloudfront.net/better-language-models/language_models_are_unsupervised_multitask_learners.pdf) (124M) model. If you have more patience or money, the code can also reproduce the [GPT-3](https://arxiv.org/pdf/2005.14165) models. While the GPT-2 (124M) model probably trained for quite some time back in the day (2019, ~5 years ago), today, reproducing it is a matter of ~1hr and ~$10. You'll need a cloud GPU box if you don't have enough, for that I recommend [Lambda](https://lambdalabs.com).
+我们基本上从一个空文件开始，一步步构建到完整复现 [GPT-2](https://d4mucfpksywv.cloudfront.net/better-language-models/language_models_are_unsupervised_multitask_learners.pdf) (124M) 模型。如果您有更多耐心或资金，这些代码也可以复现 [GPT-3](https://arxiv.org/pdf/2005.14165) 模型。虽然 GPT-2 (124M) 模型在当年（2019年，约5年前）可能需要训练相当长时间，但如今复现它只需要约1小时和约10美元。如果您没有足够强大的GPU，需要云GPU服务器，我推荐 [Lambda](https://lambdalabs.com)。
 
-Note that GPT-2 and GPT-3 and both simple language models, trained on internet documents, and all they do is "dream" internet documents. So this repo/video this does not cover Chat finetuning, and you can't talk to it like you can talk to ChatGPT. The finetuning process (while quite simple conceptually - SFT is just about swapping out the dataset and continuing the training) comes after this part and will be covered at a later time. For now this is the kind of stuff that the 124M model says if you prompt it with "Hello, I'm a language model," after 10B tokens of training:
+需要注意的是，GPT-2 和 GPT-3 都是简单的语言模型，在互联网文档上训练，它们所做的就是"梦想"互联网文档。因此，这个仓库/视频不涵盖聊天微调，您无法像与 ChatGPT 对话那样与它对话。微调过程（虽然概念上相当简单 - SFT 只是交换数据集并继续训练）在这部分之后，将在稍后的时间涵盖。目前，如果您在100亿个标记的训练后用"Hello, I'm a language model,"提示124M模型，它会说这样的话：
 
 ```
 Hello, I'm a language model, and my goal is to make English as easy and fun as possible for everyone, and to find out the different grammar rules
@@ -13,7 +13,7 @@ Hello, I'm a language model, and the question is, what should I do if I want to 
 Hello, I'm a language model, and I'm an English person. In languages, "speak" is really speaking. Because for most people, there's
 ```
 
-And after 40B tokens of training:
+在400亿个标记的训练后：
 
 ```
 Hello, I'm a language model, a model of computer science, and it's a way (in mathematics) to program computer programs to do things like write
@@ -22,35 +22,35 @@ Hello, I'm a language model, but I'm talking about data. You've got to create an
 Hello, I'm a language model, and all of this is about modeling and learning Python. I'm very good in syntax, however I struggle with Python due
 ```
 
-Lol. Anyway, once the video comes out, this will also be a place for FAQ, and a place for fixes and errata, of which I am sure there will be a number :)
+哈哈。无论如何，一旦视频发布，这里也将是常见问题解答的地方，以及修复和勘误表的地方，我相信会有很多 :)
 
-For discussions and questions, please use [Discussions tab](https://github.com/karpathy/build-nanogpt/discussions), and for faster communication, have a look at my [Zero To Hero Discord](https://discord.gg/3zy8kqD9Cp), channel **#nanoGPT**:
+关于讨论和问题，请使用 [讨论板块](https://github.com/karpathy/build-nanogpt/discussions)，如需更快的交流，请查看我的 [Zero To Hero Discord](https://discord.gg/3zy8kqD9Cp)，**#nanoGPT** 频道：
 
 [![](https://dcbadge.vercel.app/api/server/3zy8kqD9Cp?compact=true&style=flat)](https://discord.gg/3zy8kqD9Cp)
 
-## Video
+## 视频
 
-[Let's reproduce GPT-2 (124M) YouTube lecture](https://youtu.be/l8pRSuU81PU)
+[让我们复现 GPT-2 (124M) YouTube 讲座](https://youtu.be/l8pRSuU81PU)
 
-## Errata
+## 勘误表
 
-Minor cleanup, we forgot to delete `register_buffer` of the bias once we switched to flash attention, fixed with a recent PR.
+小的清理工作，我们忘记在切换到 flash attention 后删除 bias 的 `register_buffer`，通过最近的 PR 修复了。
 
-Earlier version of PyTorch may have difficulty converting from uint16 to long. Inside `load_tokens`, we added `npt = npt.astype(np.int32)` to use numpy to convert uint16 to int32 before converting to torch tensor and then converting to long.
+早期版本的 PyTorch 可能在从 uint16 转换为 long 时遇到困难。在 `load_tokens` 内部，我们添加了 `npt = npt.astype(np.int32)` 来使用 numpy 将 uint16 转换为 int32，然后再转换为 torch tensor 并转换为 long。
 
-The `torch.autocast` function takes an arg `device_type`, to which I tried to stubbornly just pass `device` hoping it works ok, but PyTorch actually really wants just the type and creates errors in some version of PyTorch. So we want e.g. the device `cuda:3` to get stripped to `cuda`. Currently, device `mps` (Apple Silicon) would become `device_type` CPU, I'm not 100% sure this is the intended PyTorch way.
+`torch.autocast` 函数接受一个参数 `device_type`，我试图固执地传递 `device` 希望能正常工作，但 PyTorch 实际上真的只想要类型并在某些 PyTorch 版本中创建错误。所以我们希望例如设备 `cuda:3` 被简化为 `cuda`。目前，设备 `mps`（Apple Silicon）会变成 `device_type` CPU，我不是100%确定这是 PyTorch 的预期方式。
 
-Confusingly, `model.require_backward_grad_sync` is actually used by both the forward and backward pass. Moved up the line so that it also gets applied to the forward pass. 
+令人困惑的是，`model.require_backward_grad_sync` 实际上被前向和后向传播都使用。将这行代码向上移动，以便它也应用于前向传播。
 
-## Prod
+## 生产环境
 
-For more production-grade runs that are very similar to nanoGPT, I recommend looking at the following repos:
+对于与 nanoGPT 非常相似的更多生产级运行，我推荐查看以下仓库：
 
 - [litGPT](https://github.com/Lightning-AI/litgpt)
 - [TinyLlama](https://github.com/jzhang38/TinyLlama)
 
-## FAQ
+## 常见问题
 
-## License
+## 许可证
 
 MIT
