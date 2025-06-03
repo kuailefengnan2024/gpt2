@@ -2,15 +2,15 @@
 # 支持单GPU和多GPU分布式训练
 # 包含验证评估、HellaSwag测试和文本生成功能
 
-import os
-import math
-import time
-import inspect
-from dataclasses import dataclass
-import torch
-import torch.nn as nn
-from torch.nn import functional as F
-from hellaswag import render_example, iterate_examples
+import os # 用于文件和目录操作
+import math # 用于数学运算
+import time # 用于时间相关操作
+import inspect # 用于获取函数信息
+from dataclasses import dataclass # 用于定义数据类
+import torch # 用于深度学习
+import torch.nn as nn # 用于定义神经网络层
+from torch.nn import functional as F # 用于定义神经网络层
+from hellaswag import render_example, iterate_examples  # 用于HellaSwag评估
 # -----------------------------------------------------------------------------
 
 # 多头自注意力机制 - GPT的核心组件
@@ -215,8 +215,8 @@ class GPT(nn.Module):
         return optimizer
 
 # -----------------------------------------------------------------------------
-import tiktoken
-import numpy as np
+import tiktoken # 用于编码和解码文本
+import numpy as np # 用于加载和处理数据
 
 # 从numpy文件加载token数据
 def load_tokens(filename):
@@ -299,7 +299,7 @@ def get_most_likely_row(tokens, mask, logits):
 # torchrun --standalone --nproc_per_node=8 train_gpt2.py
 
 # 运行训练循环
-from torch.distributed import init_process_group, destroy_process_group
+from torch.distributed import init_process_group, destroy_process_group  # 分布式训练初始化
 from torch.nn.parallel import DistributedDataParallel as DDP
 import torch.distributed as dist
 
