@@ -1,0 +1,26 @@
+# GPT训练项目依赖
+# 核心深度学习框架
+torch>=2.0.0
+torchvision>=0.15.0
+torchaudio>=2.0.0
+
+# HuggingFace生态系统
+transformers>=4.20.0
+datasets>=2.10.0
+
+# 文本处理
+tiktoken>=0.4.0
+
+# 数据处理
+numpy>=1.20.0
+
+# 工具库
+tqdm>=4.64.0
+requests>=2.28.0
+
+# 可视化（可选）
+graphviz>=0.20.0
+
+# 开发工具（可选）
+jupyter>=1.0.0
+matplotlib>=3.5.0 

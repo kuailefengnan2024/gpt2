@@ -2,7 +2,10 @@
 # 支持单GPU和多GPU分布式训练
 # 包含验证评估、HellaSwag测试和文本生成功能
 
-import os # 用于文件和目录操作
+# 启用CuDNN的Scaled Dot-Product Attention优化
+import os
+os.environ['TORCH_CUDNN_SDPA_ENABLED'] = '1'
+
 import math # 用于数学运算
 import time # 用于时间相关操作
 import inspect # 用于获取函数信息
@@ -63,7 +66,7 @@ class MLP(nn.Module):
 # Transformer块 - 包含注意力和MLP的完整单元
 class Block(nn.Module):
 
-    def __init__(self, config):
+    def __init__(self, config): 
         super().__init__()
         self.ln_1 = nn.LayerNorm(config.n_embd)
         self.attn = CausalSelfAttention(config)
@@ -142,7 +145,7 @@ class GPT(nn.Module):
     @classmethod
     def from_pretrained(cls, model_type):
         """从 huggingface 加载预训练的 GPT-2 模型权重"""
-        assert model_type in {'gpt2', 'gpt2-medium', 'gpt2-large', 'gpt2-xl'}
+        assert model_type in {'gpt2', 'gpt2-medium', 'gpt2-large', 'gpt2-xl'} # 确保模型类型是有效的
         from transformers import GPT2LMHeadModel
         print("loading weights from pretrained gpt: %s" % model_type)
 
@@ -317,10 +320,10 @@ if ddp:
     master_process = ddp_rank == 0 # 这个进程将进行日志记录、checkpointing 等
 else:
     # 单GPU或CPU训练配置
-    ddp_rank = 0
-    ddp_local_rank = 0
-    ddp_world_size = 1
-    master_process = True
+    ddp_rank = 0 # 分布式训练 rank
+    ddp_local_rank = 0 # 本地 rank
+    ddp_world_size = 1 # 世界大小
+    master_process = True # 是否是主进程
     # 尝试自动检测设备
     device = "cpu"
     if torch.cuda.is_available():
@@ -332,11 +335,11 @@ else:
 # 视频后添加，pytorch 对其 device vs. device_type 区别很严格
 device_type = "cuda" if device.startswith("cuda") else "cpu"
 
-torch.manual_seed(1337)
+torch.manual_seed(1337) # 设置随机种子
 if torch.cuda.is_available():
-    torch.cuda.manual_seed(1337)
+    torch.cuda.manual_seed(1337) # 设置 CUDA 随机种子
 
-enc = tiktoken.get_encoding("gpt2")
+enc = tiktoken.get_encoding("gpt2") # 使用 tiktoken 编码器
 
 total_batch_size = 524288 # 2**19，~0.5M，token 数量
 B = 64 # micro batch size
@@ -363,16 +366,16 @@ if ddp:
     model = DDP(model, device_ids=[ddp_local_rank])
 raw_model = model.module if ddp else model # 总是包含"原始"未包装模型
 
-max_lr = 6e-4
-min_lr = max_lr * 0.1
-warmup_steps = 715
+max_lr = 6e-4 # 最大学习率
+min_lr = max_lr * 0.1 # 最小学习率
+warmup_steps = 715 # 预热步数
 max_steps = 19073 # 19,073 steps 约为 1 epoch，如果数据是 10B tokens，batch size 0.5M tokens
 
 # 学习率调度函数 - 实现warmup和余弦衰减
 def get_lr(it):
     # 1) warmup_iters steps 的线性 warmup
     if it < warmup_steps:
-        return max_lr * (it+1) / warmup_steps
+        return max_lr * (it+1) / warmup_steps # 线性预热
     # 2) 如果 it > lr_decay_iters，返回最小学习率
     if it > max_steps:
         return min_lr
@@ -386,22 +389,22 @@ def get_lr(it):
 optimizer = raw_model.configure_optimizers(weight_decay=0.1, learning_rate=6e-4, device_type=device_type)
 
 # 创建我们将写入 checkpoints 和日志的日志目录
-log_dir = "log"
-os.makedirs(log_dir, exist_ok=True)
-log_file = os.path.join(log_dir, f"log.txt")
+log_dir = "log" # 日志目录
+os.makedirs(log_dir, exist_ok=True) # 创建日志目录
+log_file = os.path.join(log_dir, f"log.txt") # 日志文件
 with open(log_file, "w") as f: # 以写入模式打开以清空文件
     pass
 
-for step in range(max_steps):
-    t0 = time.time()
-    last_step = (step == max_steps - 1)
+for step in range(max_steps): # 训练循环
+    t0 = time.time() # 开始时间
+    last_step = (step == max_steps - 1) # 是否是最后一个步骤
 
     # 每250步进行验证损失评估
     if step % 250 == 0 or last_step:
-        model.eval()
-        val_loader.reset()
-        with torch.no_grad():
-            val_loss_accum = 0.0
+        model.eval() # 设置模型为评估模式
+        val_loader.reset() # 重置验证数据加载器
+        with torch.no_grad(): # 禁用梯度计算
+            val_loss_accum = 0.0 # 验证损失累加器
             val_loss_steps = 20
             for _ in range(val_loss_steps):
                 x, y = val_loader.next_batch()
